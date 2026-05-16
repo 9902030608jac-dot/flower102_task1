@@ -1,0 +1,384 @@
+\documentclass[UTF8]{ctexart}
+
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{verbatim}
+\usepackage{setspace}
+
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue}
+\captionsetup{font=small,labelfont=bf}
+\setstretch{1.18}
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible,keepspaces=true}
+
+\title{基于 ImageNet 预训练 ResNet 的 Flowers102 图像分类实验报告}
+\author{待填入}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+本实验围绕 Oxford 102 Category Flower Dataset 展开 102 类花卉图像分类研究，目标是通过微调在 ImageNet 上预训练的卷积神经网络实现高精度图像分类。实验以 ResNet-18 和 ResNet-34 作为 Baseline，将原始 ImageNet 分类器的 1000 类输出层替换为 102 类输出层，并采用差分学习率策略对网络主体和新分类头进行微调。在此基础上，进一步开展超参数分析、预训练消融实验以及注意力机制对比实验。实验结果表明，ImageNet 预训练显著提升了 Flowers102 小规模细粒度分类任务上的性能；ResNet-34 在验证集上略优于 ResNet-18，但测试集提升有限；较长训练轮数和较小学习率并不总是带来更高测试精度；SE 与 CBAM 注意力模块在本实验设置下未稳定超过 ResNet-18 Baseline。最终，ResNet-34 在 50 epoch、较小学习率设置下取得最高测试 Accuracy，为 90.57\%。
+\end{abstract}
+
+\section{引言}
+迁移学习是小规模图像分类任务中常用且有效的训练策略。大规模数据集 ImageNet 上训练得到的卷积神经网络通常能够学习到较通用的底层视觉特征，例如边缘、纹理、颜色组合以及局部形状结构。这些特征可以迁移到样本规模较小但类别区分细致的下游任务中，从而减少从零训练深层模型所需的数据量和计算成本。
+
+本实验使用 Oxford 102 Category Flower Dataset 作为研究对象。该数据集包含 102 个花卉类别，类别之间可能存在颜色、纹理和形态上的相似性，因此具有一定细粒度分类特征。实验首先构建基于 ImageNet 预训练 ResNet-18 和 ResNet-34 的 Baseline，然后通过超参数实验分析训练轮数与学习率组合对模型性能的影响；通过预训练消融实验比较预训练初始化与随机初始化的差异；最后在 ResNet-18 Baseline 上加入 SE-block 和 CBAM 注意力模块，分析注意力机制对分类性能的影响。
+
+本报告中的主要评价指标为 Top-1 Accuracy。由于本任务是单标签图像分类任务，而非目标检测、多标签分类或检索任务，因此不采用 mAP 作为主要评价指标。
+
+\section{数据集与预处理}
+本实验使用 Oxford 102 Category Flower Dataset，即 Flowers102 数据集。该数据集包含 102 类花卉图像，任务形式为单标签多类别图像分类。实验使用 \verb|torchvision.datasets.Flowers102| 提供的数据接口，并采用其官方划分：训练集 \verb|train|、验证集 \verb|val| 和测试集 \verb|test|。根据训练日志，训练集、验证集和测试集规模分别为 1020、1020 和 6149。
+
+训练阶段采用随机增强策略，以提高模型对尺度、位置和颜色变化的鲁棒性。具体预处理包括 RandomResizedCrop、RandomHorizontalFlip、ColorJitter、ToTensor 以及基于 ImageNet 均值和标准差的归一化。验证和测试阶段采用 Resize、CenterCrop、ToTensor 和 Normalize。ImageNet 归一化参数为：
+\begin{equation}
+\mu=(0.485,0.456,0.406), \quad \sigma=(0.229,0.224,0.225).
+\label{eq:imagenet-normalization}
+\end{equation}
+
+Flowers102 数据集类别数量较多，且部分花卉类别在颜色、花瓣形态和纹理上较为接近。同时，图像中还存在尺度、姿态和光照变化。因此，该数据集适合用于验证 ImageNet 预训练、差分学习率微调和注意力机制在细粒度图像分类任务中的效果。
+
+\section{方法}
+\subsection{Baseline ResNet 微调}
+Baseline 模型采用 torchvision 中的 ResNet-18 和 ResNet-34。原始 ImageNet 预训练 ResNet 的最后一层全连接分类器输出维度为 1000，对应 ImageNet 的 1000 个类别。本实验将该层替换为 102 类输出，以适配 Flowers102 分类任务：
+\begin{equation}
+\mathbf{z}=W\mathbf{h}+\mathbf{b}, \quad W\in\mathbb{R}^{102\times d},
+\label{eq:classifier}
+\end{equation}
+其中 \(\mathbf{h}\) 为 ResNet 全局平均池化后的特征向量，\(\mathbf{z}\) 为 102 维分类 logits。对于 pretrained 模型，卷积主干使用 ImageNet 预训练权重初始化，新的 102 类全连接层随机初始化。对于 scratch 模型，网络主干和分类头均随机初始化。
+
+模型训练采用交叉熵损失：
+\begin{equation}
+\mathcal{L}=-\frac{1}{N}\sum_{i=1}^{N}\log \frac{\exp(z_{i,y_i})}{\sum_{c=1}^{102}\exp(z_{i,c})}.
+\label{eq:cross-entropy}
+\end{equation}
+
+\subsection{差分学习率微调策略}
+迁移学习中，预训练 backbone 已经包含较稳定的通用视觉表示，因此不宜使用过大的学习率破坏已有特征；而新加入的分类头从随机初始化开始训练，需要较大学习率快速适应新任务。因此，本实验采用差分学习率策略：
+\begin{equation}
+\eta_{\text{backbone}} < \eta_{\text{head}}.
+\label{eq:differential-lr}
+\end{equation}
+主要设置包括 \(\eta_{\text{backbone}}=1\times10^{-4}\)、\(\eta_{\text{head}}=1\times10^{-3}\)，以及较小学习率组合 \(5\times10^{-5}\) 和 \(5\times10^{-4}\)。
+
+\subsection{预训练与随机初始化对比}
+预训练消融实验用于分析 ImageNet 初始化对小规模细粒度分类任务的贡献。实验分别比较 ResNet-18 pretrained 与 ResNet-18 scratch，以及 ResNet-34 pretrained 与 ResNet-34 scratch。每一对实验内部保持网络结构、训练轮数、优化器、学习率、权重衰减和随机种子一致，仅改变初始化方式。
+
+\subsection{注意力机制：SE 与 CBAM}
+本实验在 ResNet-18 Baseline 基础上手动加入两类注意力模块：SE-block 和 CBAM。两者均插入在 ResNet 的四个 residual stage 后，即 layer1、layer2、layer3 和 layer4 后。
+
+SE-block 通过全局平均池化获得通道描述符，然后经过两层全连接网络和 Sigmoid 函数得到通道权重：
+\begin{equation}
+\mathbf{s}=\sigma(W_2\delta(W_1\text{GAP}(\mathbf{X}))).
+\label{eq:se}
+\end{equation}
+最终输出为：
+\begin{equation}
+\mathbf{Y}=\mathbf{X}\odot \mathbf{s}.
+\label{eq:se-output}
+\end{equation}
+
+CBAM 依次包含 channel attention 和 spatial attention。Channel attention 同时使用平均池化和最大池化构造通道描述；spatial attention 则沿通道维度计算平均图和最大图，并通过卷积生成空间注意力图。CBAM 相比 SE 同时建模通道重要性和空间位置重要性，因此理论上可能帮助模型关注花卉主体区域及其判别性结构。需要指出的是，注意力模块并不必然提升性能；新增模块从随机初始化开始训练，在数据规模有限时可能增加优化难度或带来过拟合风险。
+
+\section{实验设置}
+实验统一使用输入尺寸 \(224\times224\)。ResNet-18 系列 batch size 为 64，ResNet-34 系列 batch size 为 32。ResNet-34 的参数量和显存占用高于 ResNet-18，因此采用较小 batch size。优化器为 AdamW，损失函数为 Cross Entropy Loss，学习率调度器为 CosineAnnealingLR，权重衰减为 \(1\times10^{-4}\)，随机种子为 42。评价指标为 Top-1 Accuracy。
+
+\begin{table}[H]
+\centering
+\caption{实验设置总表}
+\label{tab:experiment-settings}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{lllllllllll}
+\toprule
+Experiment & Backbone & Pretrained & Attention & Epochs & Batch Size & Backbone LR & Head LR & Weight Decay & Scheduler & Metric \\
+\midrule
+baseline\_resnet18\_pretrained & ResNet-18 & Yes & None & 30 & 64 & 1e-4 & 1e-3 & 1e-4 & Cosine & Acc \\
+baseline\_resnet34\_pretrained & ResNet-34 & Yes & None & 30 & 32 & 1e-4 & 1e-3 & 1e-4 & Cosine & Acc \\
+hparam\_resnet18\_lr1\_epochs30 & ResNet-18 & Yes & None & 30 & 64 & 1e-4 & 1e-3 & 1e-4 & Cosine & Acc \\
+hparam\_resnet18\_lr2\_epochs50 & ResNet-18 & Yes & None & 50 & 64 & 5e-5 & 5e-4 & 1e-4 & Cosine & Acc \\
+hparam\_resnet34\_lr1\_epochs30 & ResNet-34 & Yes & None & 30 & 32 & 1e-4 & 1e-3 & 1e-4 & Cosine & Acc \\
+hparam\_resnet34\_lr2\_epochs50 & ResNet-34 & Yes & None & 50 & 32 & 5e-5 & 5e-4 & 1e-4 & Cosine & Acc \\
+ablation\_resnet18\_scratch & ResNet-18 & No & None & 30 & 64 & 1e-4 & 1e-3 & 1e-4 & Cosine & Acc \\
+ablation\_resnet34\_scratch & ResNet-34 & No & None & 30 & 32 & 1e-4 & 1e-3 & 1e-4 & Cosine & Acc \\
+attention\_baseline\_resnet18 & ResNet-18 & Yes & None & 30 & 64 & 1e-4 & 1e-3 & 1e-4 & Cosine & Acc \\
+attention\_se\_resnet18 & ResNet-18 & Yes & SE & 30 & 64 & 1e-4 & 1e-3 & 1e-4 & Cosine & Acc \\
+attention\_cbam\_resnet18 & ResNet-18 & Yes & CBAM & 30 & 64 & 1e-4 & 1e-3 & 1e-4 & Cosine & Acc \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\section{实验结果与分析}
+\subsection{Baseline 实验结果}
+\begin{table}[H]
+\centering
+\caption{Baseline 实验结果}
+\label{tab:baseline-results}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llllllllrr}
+\toprule
+Method & Backbone & Pretrained & Epochs & Batch Size & Backbone LR & Head LR & Best Val Acc(\%) & Test Acc(\%) & Params \\
+\midrule
+baseline\_resnet18\_pretrained & ResNet-18 & Yes & 30 & 64 & 1e-4 & 1e-3 & 93.33 & 90.37 & 11,228,838 \\
+baseline\_resnet34\_pretrained & ResNet-34 & Yes & 30 & 32 & 1e-4 & 1e-3 & 93.92 & 90.40 & 21,336,998 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+ResNet-34 在验证集上取得 93.92\% 的最佳 Accuracy，高于 ResNet-18 的 93.33\%。但在测试集上，ResNet-34 的 Accuracy 为 90.40\%，ResNet-18 为 90.37\%，二者差异很小。说明更深的模型虽然具有更强表示能力，但在 Flowers102 数据规模有限的情况下，参数量增加并未带来显著测试集收益。
+
+\subsection{超参数分析}
+\begin{table}[H]
+\centering
+\caption{超参数实验结果}
+\label{tab:hparam-results}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llllrrp{5.2cm}}
+\toprule
+Experiment & Backbone & Epochs & LR 设置 & Best Val Acc(\%) & Test Acc(\%) & Observation \\
+\midrule
+hparam\_resnet18\_lr1\_epochs30 & ResNet-18 & 30 & 1e-4 / 1e-3 & 93.33 & 90.37 & 收敛充分，测试性能高于 50 epoch 小学习率设置。 \\
+hparam\_resnet18\_lr2\_epochs50 & ResNet-18 & 50 & 5e-5 / 5e-4 & 92.84 & 89.79 & 训练更长但测试精度下降，说明较小学习率和更长训练未带来收益。 \\
+hparam\_resnet34\_lr1\_epochs30 & ResNet-34 & 30 & 1e-4 / 1e-3 & 93.92 & 90.40 & 验证集表现最好，与 Baseline ResNet-34 一致。 \\
+hparam\_resnet34\_lr2\_epochs50 & ResNet-34 & 50 & 5e-5 / 5e-4 & 93.24 & 90.57 & 验证集略低，但测试集 Accuracy 最高。 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+超参数实验显示，ResNet-18 在 30 epoch、较大学习率设置下达到更高测试精度；50 epoch 与较小学习率并未提升性能。对于 ResNet-34，50 epoch 小学习率设置虽然最佳验证 Accuracy 低于 30 epoch 设置，但测试 Accuracy 达到 90.57\%，为所有实验中的最高值。
+
+\subsection{预训练消融实验}
+\begin{table}[H]
+\centering
+\caption{预训练消融实验结果}
+\label{tab:ablation-results}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llllrrp{5.2cm}}
+\toprule
+Backbone & Pretrained & Init Strategy & Best Val Acc(\%) & Test Acc(\%) & Performance Gap(\%) & Analysis \\
+\midrule
+ResNet-18 & Yes & ImageNet + random head & 93.33 & 90.37 & +53.91 & 预训练模型显著优于随机初始化，说明 ImageNet 特征迁移有效。 \\
+ResNet-18 & No & Random initialization & 42.16 & 36.46 & -- & 从零训练难以在有限样本中学习充分通用特征。 \\
+ResNet-34 & Yes & ImageNet + random head & 93.92 & 90.40 & +48.46 & 更深模型同样显著受益于 ImageNet 预训练。 \\
+ResNet-34 & No & Random initialization & 48.53 & 41.94 & -- & 随机初始化模型测试性能明显不足，泛化能力较弱。 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+消融结果表明，ImageNet 预训练对 Flowers102 这种小规模细粒度分类任务具有显著帮助。ResNet-18 pretrained 相比 scratch 测试 Accuracy 提升 53.91 个百分点；ResNet-34 pretrained 相比 scratch 提升 48.46 个百分点。
+
+\subsection{注意力机制实验}
+\begin{table}[H]
+\centering
+\caption{注意力机制对比实验结果}
+\label{tab:attention-results}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llllrrp{5.2cm}}
+\toprule
+Method & Backbone & Attention Module & Best Val Acc(\%) & Test Acc(\%) & Params & Observation \\
+\midrule
+attention\_baseline\_resnet18 & ResNet-18 & None & 93.33 & 90.37 & 11,228,838 & Baseline 表现最好，说明预训练 ResNet-18 已具备较强特征提取能力。 \\
+attention\_se\_resnet18 & ResNet-18 & SE & 92.06 & 89.95 & 11,272,358 & SE 引入通道注意力，但本实验中未超过 Baseline。 \\
+attention\_cbam\_resnet18 & ResNet-18 & CBAM & 92.65 & 88.68 & 11,272,750 & CBAM 同时建模通道和空间注意力，但测试集表现低于 Baseline。 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+实验结果显示，SE 和 CBAM 在本实验设置下未超过普通 ResNet-18 Baseline。这并不意味着注意力机制无效，而说明其效果依赖数据规模、插入位置、优化策略和训练轮数。SE 和 CBAM 模块均为随机初始化，虽然主干网络加载了 ImageNet 权重，但新增注意力模块需要在 Flowers102 上重新学习。
+
+\subsection{训练曲线与收敛性分析}
+训练过程中记录每个 epoch 的 \verb|train_loss|、\verb|val_loss|、\verb|train_acc| 和 \verb|val_acc|，并基于 \verb|metrics.csv| 自动绘制训练曲线。该曲线能够展示训练集与验证集上的 loss 变化，以及验证集 Accuracy 的变化趋势。本实验保存了与在线可视化平台等价的训练过程曲线，曲线由原始训练日志自动生成。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{outputs/figures/baseline_resnet18_pretrained/training_curves.png}
+    \caption{baseline\_resnet18\_pretrained 的训练曲线}
+    \label{fig:baseline-resnet18-curves}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{outputs/figures/baseline_resnet34_pretrained/training_curves.png}
+    \caption{baseline\_resnet34\_pretrained 的训练曲线}
+    \label{fig:baseline-resnet34-curves}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{outputs/figures/ablation_resnet18_scratch/training_curves.png}
+    \caption{ablation\_resnet18\_scratch 的训练曲线}
+    \label{fig:scratch-resnet18-curves}
+\end{figure}
+
+预训练模型通常较快收敛，训练 Accuracy 很快接近 100\%，验证 Accuracy 也能在较少 epoch 内达到较高水平。相比之下，scratch 模型的训练和验证表现明显较低，说明从随机初始化开始学习在该数据集上难度较大。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{outputs/figures/attention_se_resnet18/training_curves.png}
+    \caption{attention\_se\_resnet18 的训练曲线}
+    \label{fig:se-resnet18-curves}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{outputs/figures/attention_cbam_resnet18/training_curves.png}
+    \caption{attention\_cbam\_resnet18 的训练曲线}
+    \label{fig:cbam-resnet18-curves}
+\end{figure}
+
+\subsection{混淆矩阵分析}
+混淆矩阵用于观察模型在不同类别上的分类错误分布。Flowers102 类别数量较多，部分类别在颜色、花瓣形状和纹理上较为接近，因此类别间混淆是细粒度图像分类中的常见现象。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{outputs/figures/baseline_resnet18_pretrained/confusion_matrix.png}
+    \caption{baseline\_resnet18\_pretrained 的测试集混淆矩阵}
+    \label{fig:baseline-resnet18-confmat}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{outputs/figures/baseline_resnet34_pretrained/confusion_matrix.png}
+    \caption{baseline\_resnet34\_pretrained 的测试集混淆矩阵}
+    \label{fig:baseline-resnet34-confmat}
+\end{figure}
+
+从混淆矩阵可以分析模型对各类别的区分能力。整体上，预训练 ResNet 能够对大多数类别形成较强判别能力；错误主要可能集中在视觉外观相似的花卉类别之间。
+
+\subsection{最终主要结果汇总}
+\begin{longtable}{llllrrrr}
+\caption{最终主要结果汇总}
+\label{tab:main-summary}\\
+\toprule
+Experiment & Backbone & Pretrained & Attention & Epochs & Best Val Acc(\%) & Test Acc(\%) & Params \\
+\midrule
+\endfirsthead
+\toprule
+Experiment & Backbone & Pretrained & Attention & Epochs & Best Val Acc(\%) & Test Acc(\%) & Params \\
+\midrule
+\endhead
+attention\_cbam\_resnet18 & ResNet-18 & Yes & CBAM & 30 & 92.65 & 88.68 & 11,272,750 \\
+ablation\_resnet18\_scratch & ResNet-18 & No & None & 30 & 42.16 & 36.46 & 11,228,838 \\
+ablation\_resnet18\_pretrained & ResNet-18 & Yes & None & 30 & 93.33 & 90.37 & 11,228,838 \\
+attention\_baseline\_resnet18 & ResNet-18 & Yes & None & 30 & 93.33 & 90.37 & 11,228,838 \\
+baseline\_resnet18\_pretrained & ResNet-18 & Yes & None & 30 & 93.33 & 90.37 & 11,228,838 \\
+hparam\_resnet18\_lr1\_epochs30 & ResNet-18 & Yes & None & 30 & 93.33 & 90.37 & 11,228,838 \\
+hparam\_resnet18\_lr2\_epochs50 & ResNet-18 & Yes & None & 50 & 92.84 & 89.79 & 11,228,838 \\
+attention\_se\_resnet18 & ResNet-18 & Yes & SE & 30 & 92.06 & 89.95 & 11,272,358 \\
+ablation\_resnet34\_scratch & ResNet-34 & No & None & 30 & 48.53 & 41.94 & 21,336,998 \\
+ablation\_resnet34\_pretrained & ResNet-34 & Yes & None & 30 & 93.92 & 90.40 & 21,336,998 \\
+baseline\_resnet34\_pretrained & ResNet-34 & Yes & None & 30 & 93.92 & 90.40 & 21,336,998 \\
+hparam\_resnet34\_lr1\_epochs30 & ResNet-34 & Yes & None & 30 & 93.92 & 90.40 & 21,336,998 \\
+hparam\_resnet34\_lr2\_epochs50 & ResNet-34 & Yes & None & 50 & 93.24 & 90.57 & 21,336,998 \\
+\bottomrule
+\end{longtable}
+
+\section{结论}
+本实验完成了基于 ImageNet 预训练 ResNet 的 Flowers102 图像分类任务，并围绕 Baseline、超参数、预训练消融和注意力机制进行了系统对比。实验结果表明，ImageNet 预训练对 Flowers102 分类任务具有显著帮助。与随机初始化相比，ResNet-18 和 ResNet-34 的 pretrained 版本分别在测试 Accuracy 上提升 53.91 和 48.46 个百分点，充分说明迁移学习在小规模细粒度图像分类中的有效性。
+
+差分学习率微调策略符合迁移学习场景的训练需求。较小 backbone 学习率有助于保留预训练特征，较大 head 学习率有助于新分类层快速适配 102 类花卉标签空间。超参数实验显示，更长训练和更小学习率不一定稳定提升性能；ResNet-34 在 50 epoch 小学习率设置下取得最高测试 Accuracy，但相较 30 epoch 设置提升有限。
+
+注意力机制实验表明，SE 和 CBAM 在本实验设置下未超过普通 ResNet-18 Baseline。其原因可能包括新增模块随机初始化、训练轮数有限、小数据集上额外参数增加优化难度，以及潜在过拟合风险。后续工作可从更系统的数据增强、更细粒度学习率搜索、早停机制、更强 backbone 与更稳定的 attention 插入方式等方向继续改进。
+
+\section{参考说明}
+本实验基于 torchvision 中的 Flowers102 数据集接口完成。ResNet-18 和 ResNet-34 使用 torchvision 提供的 ImageNet 预训练权重。SE 和 CBAM 为在 ResNet stage 后手动加入的注意力模块。实验结果来自项目 \verb|outputs/metrics/| 下保存的 CSV、Markdown 和 JSON 文件。训练曲线和混淆矩阵来自 \verb|outputs/figures/| 下自动生成的图片文件。
+
+\begin{thebibliography}{9}
+\bibitem{resnet} K. He, X. Zhang, S. Ren, and J. Sun. Deep Residual Learning for Image Recognition. CVPR, 2016.
+\bibitem{se} J. Hu, L. Shen, and G. Sun. Squeeze-and-Excitation Networks. CVPR, 2018.
+\bibitem{cbam} S. Woo, J. Park, J.-Y. Lee, and I. S. Kweon. CBAM: Convolutional Block Attention Module. ECCV, 2018.
+\bibitem{flowers102} M.-E. Nilsback and A. Zisserman. Automated Flower Classification over a Large Number of Classes. ICVGIP, 2008.
+\end{thebibliography}
+
+\appendix
+\section{附录：项目结构}
+\begin{lstlisting}
+flower102_task1/
+  README.md
+  configs/
+    baseline_resnet18.yaml
+    baseline_resnet34.yaml
+    scratch_resnet18.yaml
+    se_resnet18.yaml
+    sweep_hparams.yaml
+  scripts/
+    train.py
+    eval.py
+    summarize_results.py
+    run_baseline.sh
+    run_ablation.sh
+    run_attention.sh
+    run_hparam_sweep.sh
+  src/
+    datasets.py
+    engine.py
+    metrics.py
+    logger.py
+    transforms.py
+    utils.py
+    models/
+      resnet_baseline.py
+      attention.py
+      se_resnet.py
+      cbam_resnet.py
+  outputs/
+    checkpoints/
+    figures/
+    metrics/
+\end{lstlisting}
+
+\section{附录：报告插图清单}
+\begin{longtable}{p{0.22\textwidth}p{0.70\textwidth}}
+\caption{建议插入的训练曲线图路径}
+\label{tab:curve-list}\\
+\toprule
+类型 & 路径 \\
+\midrule
+\endfirsthead
+\toprule
+类型 & 路径 \\
+\midrule
+\endhead
+训练曲线 & \verb|outputs/figures/baseline_resnet18_pretrained/training_curves.png| \\
+训练曲线 & \verb|outputs/figures/baseline_resnet34_pretrained/training_curves.png| \\
+训练曲线 & \verb|outputs/figures/ablation_resnet18_pretrained/training_curves.png| \\
+训练曲线 & \verb|outputs/figures/ablation_resnet18_scratch/training_curves.png| \\
+训练曲线 & \verb|outputs/figures/attention_baseline_resnet18/training_curves.png| \\
+训练曲线 & \verb|outputs/figures/attention_se_resnet18/training_curves.png| \\
+训练曲线 & \verb|outputs/figures/attention_cbam_resnet18/training_curves.png| \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{p{0.22\textwidth}p{0.70\textwidth}}
+\caption{建议插入的混淆矩阵图路径}
+\label{tab:confusion-list}\\
+\toprule
+类型 & 路径 \\
+\midrule
+\endfirsthead
+\toprule
+类型 & 路径 \\
+\midrule
+\endhead
+混淆矩阵 & \verb|outputs/figures/baseline_resnet18_pretrained/confusion_matrix.png| \\
+混淆矩阵 & \verb|outputs/figures/baseline_resnet34_pretrained/confusion_matrix.png| \\
+混淆矩阵 & \verb|outputs/figures/attention_baseline_resnet18/confusion_matrix.png| \\
+混淆矩阵 & \verb|outputs/figures/attention_se_resnet18/confusion_matrix.png| \\
+混淆矩阵 & \verb|outputs/figures/attention_cbam_resnet18/confusion_matrix.png| \\
+\bottomrule
+\end{longtable}
+
+\end{document}

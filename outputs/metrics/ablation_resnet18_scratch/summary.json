@@ -1,0 +1,19 @@
+{
+  "best_val_acc": 42.15686267030005,
+  "test_loss": 2.5877982924519216,
+  "test_acc": 36.461213205399254,
+  "train_time": 178.82780408859253,
+  "checkpoint_path": "/root/autodl-tmp/flower102_task1/outputs/checkpoints/ablation_resnet18_scratch/best.pt",
+  "confusion_matrix_npy": "/root/autodl-tmp/flower102_task1/outputs/figures/ablation_resnet18_scratch/confusion_matrix.npy",
+  "confusion_matrix_png": "/root/autodl-tmp/flower102_task1/outputs/figures/ablation_resnet18_scratch/confusion_matrix.png",
+  "experiment_name": "ablation_resnet18_scratch",
+  "model": "resnet18",
+  "pretrained": false,
+  "attention": "none",
+  "epochs": 30,
+  "batch_size": 64,
+  "backbone_lr": 0.0001,
+  "head_lr": 0.001,
+  "weight_decay": 0.0001,
+  "params": 11228838
+}

@@ -1,0 +1,9 @@
+{
+  "best_val_acc": 93.33333333333333,
+  "test_loss": 0.4047276838212311,
+  "test_acc": 90.37241827939502,
+  "train_time": 176.30108261108398,
+  "checkpoint_path": "/root/autodl-tmp/flower102_task1/outputs/checkpoints/attention_baseline_resnet18/best.pt",
+  "confusion_matrix_npy": "/root/autodl-tmp/flower102_task1/outputs/figures/attention_baseline_resnet18/confusion_matrix.npy",
+  "confusion_matrix_png": "/root/autodl-tmp/flower102_task1/outputs/figures/attention_baseline_resnet18/confusion_matrix.png"
+}

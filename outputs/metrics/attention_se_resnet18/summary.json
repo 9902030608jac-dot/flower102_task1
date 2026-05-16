@@ -1,0 +1,19 @@
+{
+  "best_val_acc": 92.05882337981579,
+  "test_loss": 0.4161917420782986,
+  "test_acc": 89.9495852984225,
+  "train_time": 176.1570360660553,
+  "checkpoint_path": "/root/autodl-tmp/flower102_task1/outputs/checkpoints/attention_se_resnet18/best.pt",
+  "confusion_matrix_npy": "/root/autodl-tmp/flower102_task1/outputs/figures/attention_se_resnet18/confusion_matrix.npy",
+  "confusion_matrix_png": "/root/autodl-tmp/flower102_task1/outputs/figures/attention_se_resnet18/confusion_matrix.png",
+  "experiment_name": "attention_se_resnet18",
+  "model": "resnet18",
+  "pretrained": true,
+  "attention": "se",
+  "epochs": 30,
+  "batch_size": 64,
+  "backbone_lr": 0.0001,
+  "head_lr": 0.001,
+  "weight_decay": 0.0001,
+  "params": 11272358
+}

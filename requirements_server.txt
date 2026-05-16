@@ -1,0 +1,6 @@
+# For the current AutoDL/SeeTacloud base environment.
+# Base already has torch 2.8.0+cu128 and torchvision 0.23.0+cu128.
+# Use this file after cloning base to avoid reinstalling CUDA PyTorch.
+timm>=0.9.12
+pandas>=2.0.0
+swanlab>=0.3.0

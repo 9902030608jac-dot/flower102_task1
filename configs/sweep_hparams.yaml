@@ -1,0 +1,33 @@
+sweeps:
+  - name: hparam_resnet18_lr1_epochs30
+    config: configs/baseline_resnet18.yaml
+    overrides:
+      model.arch: resnet18
+      model.pretrained: true
+      train.backbone_lr: 0.0001
+      train.head_lr: 0.001
+      train.epochs: 30
+  - name: hparam_resnet18_lr2_epochs50
+    config: configs/baseline_resnet18.yaml
+    overrides:
+      model.arch: resnet18
+      model.pretrained: true
+      train.backbone_lr: 0.00005
+      train.head_lr: 0.0005
+      train.epochs: 50
+  - name: hparam_resnet34_lr1_epochs30
+    config: configs/baseline_resnet34.yaml
+    overrides:
+      model.arch: resnet34
+      model.pretrained: true
+      train.backbone_lr: 0.0001
+      train.head_lr: 0.001
+      train.epochs: 30
+  - name: hparam_resnet34_lr2_epochs50
+    config: configs/baseline_resnet34.yaml
+    overrides:
+      model.arch: resnet34
+      model.pretrained: true
+      train.backbone_lr: 0.00005
+      train.head_lr: 0.0005
+      train.epochs: 50

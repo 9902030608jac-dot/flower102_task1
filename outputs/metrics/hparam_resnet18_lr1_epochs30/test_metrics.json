@@ -1,0 +1,9 @@
+{
+  "best_val_acc": 93.33333333333333,
+  "test_loss": 0.4047276838212311,
+  "test_acc": 90.37241827939502,
+  "train_time": 174.29455828666687,
+  "checkpoint_path": "/root/autodl-tmp/flower102_task1/outputs/checkpoints/hparam_resnet18_lr1_epochs30/best.pt",
+  "confusion_matrix_npy": "/root/autodl-tmp/flower102_task1/outputs/figures/hparam_resnet18_lr1_epochs30/confusion_matrix.npy",
+  "confusion_matrix_png": "/root/autodl-tmp/flower102_task1/outputs/figures/hparam_resnet18_lr1_epochs30/confusion_matrix.png"
+}

@@ -1,0 +1,59 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Local system/editor files
+.DS_Store
+.vscode/
+.idea/
+
+# Datasets and downloaded archives: do NOT upload to GitHub
+data/
+*.tgz
+*.tar
+*.tar.gz
+*.zip
+
+# Downloaded pretrained weights/cache: do NOT upload to GitHub
+assets/
+
+# Training checkpoints/model weights: upload to cloud drive instead
+outputs/checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# Runtime logs and online logger files
+outputs/logs/
+wandb/
+swanlog/
+swanlab/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Keep metrics and figures for reproducibility/report review
+!outputs/
+!outputs/metrics/
+!outputs/metrics/**
+!outputs/figures/
+!outputs/figures/**

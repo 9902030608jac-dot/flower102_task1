@@ -1,0 +1,19 @@
+{
+  "best_val_acc": 93.92156868728937,
+  "test_loss": 0.36516374800332885,
+  "test_acc": 90.40494389331599,
+  "train_time": 192.16014170646667,
+  "checkpoint_path": "/root/autodl-tmp/flower102_task1/outputs/checkpoints/baseline_resnet34_pretrained/best.pt",
+  "confusion_matrix_npy": "/root/autodl-tmp/flower102_task1/outputs/figures/baseline_resnet34_pretrained/confusion_matrix.npy",
+  "confusion_matrix_png": "/root/autodl-tmp/flower102_task1/outputs/figures/baseline_resnet34_pretrained/confusion_matrix.png",
+  "experiment_name": "baseline_resnet34_pretrained",
+  "model": "resnet34",
+  "pretrained": true,
+  "attention": "none",
+  "epochs": 30,
+  "batch_size": 32,
+  "backbone_lr": 0.0001,
+  "head_lr": 0.001,
+  "weight_decay": 0.0001,
+  "params": 21336998
+}

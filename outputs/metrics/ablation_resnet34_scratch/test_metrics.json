@@ -1,0 +1,9 @@
+{
+  "best_val_acc": 48.52941173478669,
+  "test_loss": 2.3904360754351477,
+  "test_acc": 41.94177915108148,
+  "train_time": 196.81248950958252,
+  "checkpoint_path": "/root/autodl-tmp/flower102_task1/outputs/checkpoints/ablation_resnet34_scratch/best.pt",
+  "confusion_matrix_npy": "/root/autodl-tmp/flower102_task1/outputs/figures/ablation_resnet34_scratch/confusion_matrix.npy",
+  "confusion_matrix_png": "/root/autodl-tmp/flower102_task1/outputs/figures/ablation_resnet34_scratch/confusion_matrix.png"
+}
