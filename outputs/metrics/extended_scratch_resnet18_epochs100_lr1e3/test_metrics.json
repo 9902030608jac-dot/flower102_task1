@@ -1,0 +1,9 @@
+{
+  "best_val_acc": 54.90196078431372,
+  "test_loss": 2.453985675948871,
+  "test_acc": 48.86973491624654,
+  "train_time": 551.8943960666656,
+  "checkpoint_path": "/root/autodl-tmp/flower102_task1/outputs/checkpoints/extended_scratch_resnet18_epochs100_lr1e3/best.pt",
+  "confusion_matrix_npy": "/root/autodl-tmp/flower102_task1/outputs/figures/extended_scratch_resnet18_epochs100_lr1e3/confusion_matrix.npy",
+  "confusion_matrix_png": "/root/autodl-tmp/flower102_task1/outputs/figures/extended_scratch_resnet18_epochs100_lr1e3/confusion_matrix.png"
+}

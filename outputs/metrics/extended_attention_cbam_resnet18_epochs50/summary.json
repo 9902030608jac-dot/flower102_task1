@@ -1,0 +1,19 @@
+{
+  "best_val_acc": 93.03921538708256,
+  "test_loss": 0.41222206246126597,
+  "test_acc": 89.3478614408847,
+  "train_time": 291.86424946784973,
+  "checkpoint_path": "/root/autodl-tmp/flower102_task1/outputs/checkpoints/extended_attention_cbam_resnet18_epochs50/best.pt",
+  "confusion_matrix_npy": "/root/autodl-tmp/flower102_task1/outputs/figures/extended_attention_cbam_resnet18_epochs50/confusion_matrix.npy",
+  "confusion_matrix_png": "/root/autodl-tmp/flower102_task1/outputs/figures/extended_attention_cbam_resnet18_epochs50/confusion_matrix.png",
+  "experiment_name": "extended_attention_cbam_resnet18_epochs50",
+  "model": "resnet18",
+  "pretrained": true,
+  "attention": "cbam",
+  "epochs": 50,
+  "batch_size": 64,
+  "backbone_lr": 0.0001,
+  "head_lr": 0.001,
+  "weight_decay": 0.0001,
+  "params": 11272750
+}
