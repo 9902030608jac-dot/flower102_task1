@@ -293,6 +293,18 @@ hparam\_resnet34\_lr2\_epochs50 & ResNet-34 & Yes & None & 50 & 93.24 & 90.57 & 
 
 注意力机制实验表明，SE 和 CBAM 在本实验设置下未超过普通 ResNet-18 Baseline。其原因可能包括新增模块随机初始化、训练轮数有限、小数据集上额外参数增加优化难度，以及潜在过拟合风险。后续工作可从更系统的数据增强、更细粒度学习率搜索、早停机制、更强 backbone 与更稳定的 attention 插入方式等方向继续改进。
 
+
+\section{代码与模型权重链接}
+
+本实验代码已提交至 public GitHub 仓库，仓库中包含训练与测试代码、配置文件、实验结果表、训练曲线、混淆矩阵以及报告 \LaTeX{} 源码。根据作业要求，数据集文件、ImageNet 预训练缓存以及训练得到的模型权重不上传至 GitHub。
+
+\begin{itemize}
+    \item GitHub 仓库：\url{https://github.com/9902030608jac-dot/flower102_task1}
+    \item 模型权重 Google Drive 链接：\url{https://drive.google.com/drive/folders/16jzCBtfwesFbTHLzad11ZXdOw51ncH9-?usp=drive_link}
+\end{itemize}
+
+模型权重文件对应项目中的 \verb|outputs/checkpoints/{experiment_name}/best.pt|。下载后可按照仓库中 \verb|MODEL_WEIGHTS.md| 的说明放回对应目录并执行评测。Google Drive 中仅包含训练好的模型权重及其校验说明，不包含 Flowers102 数据集文件。
+
 \section{参考说明}
 本实验基于 torchvision 中的 Flowers102 数据集接口完成。ResNet-18 和 ResNet-34 使用 torchvision 提供的 ImageNet 预训练权重。SE 和 CBAM 为在 ResNet stage 后手动加入的注意力模块。实验结果来自项目 \verb|outputs/metrics/| 下保存的 CSV、Markdown 和 JSON 文件。训练曲线和混淆矩阵来自 \verb|outputs/figures/| 下自动生成的图片文件。
 
