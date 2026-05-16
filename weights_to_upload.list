@@ -1,0 +1,13 @@
+outputs/checkpoints/ablation_resnet18_pretrained/best.pt
+outputs/checkpoints/ablation_resnet18_scratch/best.pt
+outputs/checkpoints/ablation_resnet34_pretrained/best.pt
+outputs/checkpoints/ablation_resnet34_scratch/best.pt
+outputs/checkpoints/attention_baseline_resnet18/best.pt
+outputs/checkpoints/attention_cbam_resnet18/best.pt
+outputs/checkpoints/attention_se_resnet18/best.pt
+outputs/checkpoints/baseline_resnet18_pretrained/best.pt
+outputs/checkpoints/baseline_resnet34_pretrained/best.pt
+outputs/checkpoints/hparam_resnet18_lr1_epochs30/best.pt
+outputs/checkpoints/hparam_resnet18_lr2_epochs50/best.pt
+outputs/checkpoints/hparam_resnet34_lr1_epochs30/best.pt
+outputs/checkpoints/hparam_resnet34_lr2_epochs50/best.pt
