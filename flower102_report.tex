@@ -44,7 +44,7 @@
 \section{数据集与预处理}
 本实验使用 Oxford 102 Category Flower Dataset，即 Flowers102 数据集。该数据集包含 102 类花卉图像，任务形式为单标签多类别图像分类。实验使用 \verb|torchvision.datasets.Flowers102| 提供的数据接口，并采用其官方划分：训练集 \verb|train|、验证集 \verb|val| 和测试集 \verb|test|。根据训练日志，训练集、验证集和测试集规模分别为 1020、1020 和 6149。
 
-训练阶段采用随机增强策略，以提高模型对尺度、位置和颜色变化的鲁棒性。具体预处理包括 RandomResizedCrop、RandomHorizontalFlip、ColorJitter、ToTensor 以及基于 ImageNet 均值和标准差的归一化。验证和测试阶段采用 Resize、CenterCrop、ToTensor 和 Normalize。ImageNet 归一化参数为：
+训练阶段采用随机增强策略，以提高模型对尺度、位置和颜色变化的鲁棒性。具体预处理包括 \texttt{RandomResizedCrop(224, scale=(0.65,1.0), ratio=(0.75,1.333))}、\texttt{RandomHorizontalFlip(p=0.5)}、轻量 \texttt{ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05)}、\texttt{ToTensor} 以及基于 ImageNet 均值和标准差的归一化。Flowers102 训练集规模较小，随机增强可以人为制造合理扰动，减少模型对固定背景、拍摄角度、主体尺度和光照条件的记忆；但花卉分类又高度依赖颜色、花瓣形态和纹理，因此本实验没有使用强旋转、过强颜色扰动、CutMix、MixUp、AutoAugment 或 RandAugment，避免增强破坏类别判别特征。验证和测试阶段采用确定性的 Resize、CenterCrop、ToTensor 和 Normalize，保证评估结果不受随机增强影响。ImageNet 归一化参数为：
 \begin{equation}
 \mu=(0.485,0.456,0.406), \quad \sigma=(0.229,0.224,0.225).
 \label{eq:imagenet-normalization}

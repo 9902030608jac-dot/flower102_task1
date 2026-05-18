@@ -208,8 +208,10 @@ python scripts/download_assets.py --config configs/baseline_resnet18.yaml
 
 默认数据增强：
 
-- train: `RandomResizedCrop(224)`, `RandomHorizontalFlip`, optional `ColorJitter`, ImageNet Normalize
-- val/test: `Resize(256)`, `CenterCrop(224)`, ImageNet Normalize
+- train: `RandomResizedCrop(224, scale=(0.65, 1.0), ratio=(0.75, 1.333))`, `RandomHorizontalFlip(p=0.5)`, optional `ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05)`, `ToTensor`, ImageNet Normalize
+- val/test: `Resize(256)`, `CenterCrop(224)`, `ToTensor`, ImageNet Normalize
+
+Flowers102 训练集规模较小，随机裁剪、水平翻转和轻量颜色扰动用于人为增加合理外观变化，降低模型记住固定背景、固定角度和固定尺度的风险。当前增强策略刻意保持温和：没有使用强旋转、过强颜色扰动、CutMix、MixUp、AutoAugment 或 RandAugment，避免破坏花卉类别依赖的颜色、花瓣形态和纹理线索。验证集和测试集只使用确定性预处理，确保评估结果不受随机增强影响。
 
 如果显存不足，把 YAML 或命令行里的 `batch_size` 改为 16 或 8。
 
