@@ -207,8 +207,9 @@ def fit(
         if exp_logger is not None and hasattr(exp_logger, "save_file"):
             exp_logger.save_file(last_ckpt)
         print(
-            f"Epoch {epoch:03d}/{epochs}: train_acc={row[train_acc]:.2f}, "
-            f"val_acc={row[val_acc]:.2f}, val_mAP={row[val_map]:.2f}, best={best_val_acc:.2f}"
+            "Epoch {:03d}/{}: train_acc={:.2f}, val_acc={:.2f}, val_mAP={:.2f}, best={:.2f}".format(
+                epoch, epochs, row["train_acc"], row["val_acc"], row["val_map"], best_val_acc
+            )
         )
 
     checkpoint = torch.load(best_ckpt, map_location=device)
