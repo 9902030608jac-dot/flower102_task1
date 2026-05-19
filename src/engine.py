@@ -238,9 +238,6 @@ def fit(
             "train_time": elapsed,
         }
         exp_logger.log(final_log)
-        exp_logger.log_artifact(str(paths["figures_dir"] / "wandb_training_curves.png"), name="wandb_training_curves")
-        exp_logger.log_artifact(cm_paths["png"], name="confusion_matrix")
         if hasattr(exp_logger, "save_file"):
             exp_logger.save_file(test_metrics_path)
-            exp_logger.save_file(cm_paths["png"])
     return out
