@@ -45,22 +45,22 @@ class ExperimentLogger:
 
     def log_artifact(self, path: str, name: str | None = None) -> None:
         metric_name = name or "artifact"
+        path_obj = Path(path)
         if self.logger_type == "wandb":
-            path_obj = Path(path)
             if path_obj.suffix.lower() in {".png", ".jpg", ".jpeg"}:
                 self.backend.log({metric_name: self.backend.Image(str(path_obj))})
-            else:
-                artifact = self.backend.Artifact(metric_name, type="file")
-                artifact.add_file(str(path_obj))
-                self.backend.log_artifact(artifact)
-        elif self.logger_type == "swanlab":
-            self.backend.log({metric_name: str(path)})
+            return
+        if self.logger_type == "swanlab":
+            self.backend.log({metric_name: str(path_obj)})
 
     def save_file(self, path: str | Path, base_path: str | Path | None = None) -> None:
-        if self.logger_type == "wandb":
-            self.backend.save(str(path), base_path=str(base_path) if base_path is not None else None)
-        elif self.logger_type == "swanlab":
-            self.backend.log({"saved_file": str(path)})
+        path_obj = Path(path)
+        if path_obj.suffix.lower() in {".pt", ".pth", ".ckpt"}:
+            return
+        if self.logger_type == "swanlab":
+            self.backend.log({"saved_file": str(path_obj)})
+        # For WandB, keep files in outputs/ and only log scalar metrics/images.
+        # Avoid wandb.save() so model weights and intermediate files are not uploaded.
 
     def finish(self) -> None:
         if self.run is not None and self.logger_type in {"wandb", "swanlab"}:

@@ -47,6 +47,33 @@ class AverageMeter:
         self.avg = self.sum / max(self.count, 1)
 
 
+def _plot_loss_and_val_metrics(history: list[dict], png_path: Path) -> None:
+    epochs = [row["epoch"] for row in history]
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+    axes[0].plot(epochs, [row["train_loss"] for row in history], label="Train Loss", marker="o", linewidth=1.8)
+    axes[0].plot(epochs, [row["val_loss"] for row in history], label="Val Loss", marker="o", linewidth=1.8)
+    axes[0].set_title("Train/Val Loss")
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Loss")
+    axes[0].grid(True, alpha=0.3)
+    axes[0].legend()
+
+    axes[1].plot(epochs, [row["val_acc"] for row in history], label="Val Accuracy", marker="o", linewidth=1.8)
+    if "val_map" in history[-1]:
+        axes[1].plot(epochs, [row["val_map"] for row in history], label="Val mAP", marker="o", linewidth=1.8)
+    axes[1].set_title("Validation Accuracy / mAP")
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_ylabel("Metric (%)")
+    axes[1].grid(True, alpha=0.3)
+    axes[1].legend()
+
+    fig.suptitle("WandB Logged Metrics", fontsize=14)
+    fig.tight_layout()
+    fig.savefig(png_path, dpi=200)
+    plt.close(fig)
+
+
 def save_training_curves(history: list[dict], out_dir: str | Path, filename: str = "training_curves") -> str:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -92,10 +119,10 @@ def save_training_curves(history: list[dict], out_dir: str | Path, filename: str
     fig.suptitle("Training Curves", fontsize=14)
     fig.tight_layout()
     fig.savefig(png_path, dpi=200)
-    fig.savefig(out_dir / "wandb_training_curves.png", dpi=200)
     plt.close(fig)
-    return str(png_path)
 
+    _plot_loss_and_val_metrics(history, out_dir / "wandb_training_curves.png")
+    return str(png_path)
 
 def save_confusion_matrix(
     y_true: list[int],
