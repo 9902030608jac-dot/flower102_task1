@@ -189,12 +189,6 @@ def fit(
         wandb_curves_path = paths["figures_dir"] / "wandb_training_curves.png"
         if exp_logger is not None:
             exp_logger.log(row, step=epoch)
-            exp_logger.log_artifact(curves_path, name="training_curves")
-            exp_logger.log_artifact(str(wandb_curves_path), name="wandb_training_curves")
-            if hasattr(exp_logger, "save_file"):
-                exp_logger.save_file(metrics_path)
-                exp_logger.save_file(curves_path)
-                exp_logger.save_file(wandb_curves_path)
 
         if row["val_acc"] > best_val_acc:
             best_val_acc = row["val_acc"]
@@ -235,10 +229,18 @@ def fit(
     test_metrics_path = paths["metrics_dir"] / "test_metrics.json"
     save_json(out, test_metrics_path)
     if exp_logger is not None:
-        exp_logger.log({"best_val_acc": best_val_acc, "best_val_map": best_val_map, "test_acc": out["test_acc"], "test_map": out["test_map"], "train_time": elapsed})
+        final_log = {
+            "best_val_acc": best_val_acc,
+            "best_val_map": best_val_map,
+            "test_loss": out["test_loss"],
+            "test_acc": out["test_acc"],
+            "test_map": out["test_map"],
+            "train_time": elapsed,
+        }
+        exp_logger.log(final_log)
+        exp_logger.log_artifact(str(paths["figures_dir"] / "wandb_training_curves.png"), name="wandb_training_curves")
         exp_logger.log_artifact(cm_paths["png"], name="confusion_matrix")
         if hasattr(exp_logger, "save_file"):
             exp_logger.save_file(test_metrics_path)
-            exp_logger.save_file(cm_paths["npy"])
             exp_logger.save_file(cm_paths["png"])
     return out

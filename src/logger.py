@@ -29,6 +29,18 @@ class ExperimentLogger:
             if wandb_dir is not None:
                 os.environ.setdefault("WANDB_DIR", wandb_dir)
             self.run = wandb.init(project=project, name=name, config=config, dir=wandb_dir)
+            wandb.define_metric("epoch")
+            for metric in [
+                "train_loss",
+                "train_acc",
+                "val_loss",
+                "val_acc",
+                "val_map",
+                "lr_backbone",
+                "lr_attention",
+                "lr_head",
+            ]:
+                wandb.define_metric(metric, step_metric="epoch")
         elif self.logger_type == "swanlab":
             import swanlab
 
@@ -40,7 +52,9 @@ class ExperimentLogger:
             raise ValueError(f"Unknown logger type: {logger_type}. Choose none, wandb, or swanlab.")
 
     def log(self, data: dict[str, Any], step: int | None = None) -> None:
-        if self.logger_type in {"wandb", "swanlab"}:
+        if self.logger_type == "wandb":
+            self.backend.log(data)
+        elif self.logger_type == "swanlab":
             self.backend.log(data, step=step)
 
     def log_artifact(self, path: str, name: str | None = None) -> None:
