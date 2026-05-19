@@ -109,3 +109,4 @@ for _, row in subset.iterrows():
     lines.append("| " + " | ".join(fmt(row[col]) for col in columns) + " |")
 Path("outputs/metrics/extended_budget_only.md").write_text("\n".join(lines) + "\n")
 PYFILTER
+python scripts/export_experiment_settings.py

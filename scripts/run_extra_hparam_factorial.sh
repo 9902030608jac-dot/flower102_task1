@@ -32,3 +32,4 @@ python scripts/train.py --config configs/baseline_resnet34.yaml \
 
 python scripts/analyze_confusions.py --top_k 10
 python scripts/summarize_results.py --out_csv outputs/metrics/results_summary.csv --out_md outputs/metrics/results_summary.md
+python scripts/export_experiment_settings.py

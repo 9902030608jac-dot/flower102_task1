@@ -16,3 +16,4 @@ echo "[Attention] Optional CBAM-ResNet-18"
 python scripts/train.py --config configs/baseline_resnet18.yaml --experiment.name attention_cbam_resnet18 --attention cbam
 
 python scripts/summarize_results.py --out_csv outputs/metrics/attention_comparison.csv --out_md outputs/metrics/attention_comparison.md
+python scripts/export_experiment_settings.py

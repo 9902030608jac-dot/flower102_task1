@@ -13,3 +13,4 @@ echo "[Baseline] ResNet-34 pretrained"
 python scripts/train.py --config configs/baseline_resnet34.yaml
 
 python scripts/summarize_results.py
+python scripts/export_experiment_settings.py

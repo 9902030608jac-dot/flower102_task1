@@ -19,3 +19,4 @@ echo "[Ablation] ResNet-34 scratch"
 python scripts/train.py --config configs/baseline_resnet34.yaml --experiment.name ablation_resnet34_scratch --arch resnet34 --pretrained false
 
 python scripts/summarize_results.py --out_csv outputs/metrics/pretrained_ablation.csv --out_md outputs/metrics/pretrained_ablation.md
+python scripts/export_experiment_settings.py

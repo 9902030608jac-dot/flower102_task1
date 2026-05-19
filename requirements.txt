@@ -10,3 +10,4 @@ matplotlib>=3.7.0
 swanlab>=0.3.0
 PyYAML>=6.0.1
 Pillow>=10.0.0
+wandb>=0.16.0

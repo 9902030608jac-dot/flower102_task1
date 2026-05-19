@@ -28,6 +28,7 @@ flower102_task1/
 │   ├── run_extra_hparam_factorial.sh
 │   ├── run_extended_budget.sh
 │   ├── summarize_results.py
+│   ├── export_experiment_settings.py
 │   └── analyze_confusions.py
 ├── src/
 │   ├── datasets.py
@@ -104,6 +105,7 @@ Pillow 12.0.0
 pandas
 timm
 swanlab
+wandb
 ```
 
 因此推荐 clone base，而不是重新创建一个从零安装 PyTorch 的环境：
@@ -239,6 +241,7 @@ python scripts/train.py \
   --experiment.name baseline_resnet18_lr1e4 \
   --train.epochs 50 \
   --train.backbone_lr 5e-5 \
+  --train.attention_lr 5e-4 \
   --train.head_lr 5e-4 \
   --data.batch_size 32
 ```
@@ -247,7 +250,7 @@ python scripts/train.py \
 
 ```bash
 python scripts/train.py --config configs/baseline_resnet18.yaml \
-  --epochs 50 --batch_size 32 --backbone_lr 5e-5 --head_lr 5e-4 \
+  --epochs 50 --batch_size 32 --backbone_lr 5e-5 --attention_lr 5e-4 --head_lr 5e-4 \
   --weight_decay 1e-4 --arch resnet18 --pretrained true --attention none --logger none
 ```
 
@@ -325,14 +328,18 @@ python scripts/eval.py \
 - `outputs/checkpoints/{experiment_name}/best.pt`: best validation accuracy checkpoint
 - `outputs/checkpoints/{experiment_name}/last.pt`: latest checkpoint
 - `outputs/metrics/{experiment_name}/config.yaml`: 实际运行配置
-- `outputs/metrics/{experiment_name}/metrics.csv`: 每个 epoch 的 train/val loss、accuracy、learning rate
-- `outputs/metrics/{experiment_name}/test_metrics.json`: best checkpoint 在 test split 上的结果
+- `outputs/metrics/{experiment_name}/metrics.csv`: 每个 epoch 的 train/val loss、train/val accuracy、验证集 macro mAP、learning rate
+- `outputs/metrics/{experiment_name}/test_metrics.json`: best checkpoint 在 test split 上的 loss、Accuracy、macro mAP
 - `outputs/metrics/{experiment_name}/summary.json`: 汇总字段
 - `outputs/figures/{experiment_name}/confusion_matrix.png`: 测试集原始混淆矩阵图
 - `outputs/figures/{experiment_name}/confusion_matrix.npy`: 测试集原始混淆矩阵数组，供后处理分析使用
-- `outputs/figures/{experiment_name}/training_curves.png`: train/val loss、accuracy 与 learning rate 曲线
+- `outputs/figures/{experiment_name}/training_curves.png`: train/val loss、验证集 Accuracy/mAP 与 learning rate 曲线
+- `outputs/figures/{experiment_name}/wandb_training_curves.png`: 与 WandB 同步记录的本地曲线图片，可用于报告截图
+- `outputs/logs/{experiment_name}/`: WandB 本地运行目录，包含本次 run 的本地日志缓存
 - `outputs/metrics/results_summary.csv`: 所有实验汇总
 - `outputs/metrics/results_summary.md`: 可直接粘贴进报告的 Markdown 表格
+- `outputs/metrics/experiment_settings.csv`: 训练/验证/测试划分、网络结构、batch size、learning rate、优化器、iteration、epoch、loss function、评价指标等详细实验设置
+- `outputs/metrics/experiment_settings.md`: 可直接写入报告的实验设置 Markdown 表格
 
 为了避免混淆矩阵只作为装饰图，本项目额外提供 `scripts/analyze_confusions.py` 对已经保存的 `confusion_matrix.npy` 做后处理分析：
 
@@ -372,15 +379,39 @@ python scripts/analyze_confusions.py --top_k 10
 - `outputs/metrics/extended_budget_only.csv`
 - `outputs/metrics/extended_budget_only.md`
 
+所有 `run_*.sh` 脚本在训练和结果汇总后还会调用 `scripts/export_experiment_settings.py`，刷新：
+
+- `outputs/metrics/experiment_settings.csv`
+- `outputs/metrics/experiment_settings.md`
+
 ## Logging
 
-默认 `logger.type=none`，不需要任何账号即可训练。
-
-本项目当前默认关闭在线实验记录，`logger.type=none`。报告曲线由本地 `metrics.csv` 自动绘制并保存到 `outputs/figures/{experiment_name}/training_curves.png`。如需使用 swanlab，可在 YAML 中设置：
+默认配置使用 WandB 记录训练过程：
 
 ```yaml
 logger:
-  type: swanlab
+  type: wandb
+  project: flower102-task1
+```
+
+训练脚本会逐 epoch 向 WandB 写入 `train_loss`、`val_loss`、`train_acc`、`val_acc`、`val_map`、backbone/attention/head learning rate 等标量，并将 `outputs/figures/{experiment_name}/wandb_training_curves.png` 作为图片同步记录。该本地图片包含训练集和验证集 loss 曲线，以及验证集 Accuracy / mAP 曲线；WandB 本地 run 缓存在 `outputs/logs/{experiment_name}/`。
+
+首次训练前需要登录 WandB：
+
+```bash
+wandb login
+```
+
+如果只想离线保存本地 WandB run，可在训练前设置：
+
+```bash
+export WANDB_MODE=offline
+```
+
+如果不需要在线可视化，可临时覆盖：
+
+```bash
+python scripts/train.py --config configs/baseline_resnet18.yaml --logger none
 ```
 
 ## Recommended Experiments
@@ -391,14 +422,14 @@ logger:
 | --- | --- |
 | Baseline | ResNet-18 pretrained |
 | Baseline | ResNet-34 pretrained |
-| Hyperparameter | ResNet-18, backbone_lr=1e-4, head_lr=1e-3, epochs=30 |
-| Hyperparameter | ResNet-18, backbone_lr=1e-4, head_lr=1e-3, epochs=50 |
-| Hyperparameter | ResNet-18, backbone_lr=5e-5, head_lr=5e-4, epochs=30 |
-| Hyperparameter | ResNet-18, backbone_lr=5e-5, head_lr=5e-4, epochs=50 |
-| Hyperparameter | ResNet-34, backbone_lr=1e-4, head_lr=1e-3, epochs=30 |
-| Hyperparameter | ResNet-34, backbone_lr=1e-4, head_lr=1e-3, epochs=50 |
-| Hyperparameter | ResNet-34, backbone_lr=5e-5, head_lr=5e-4, epochs=30 |
-| Hyperparameter | ResNet-34, backbone_lr=5e-5, head_lr=5e-4, epochs=50 |
+| Hyperparameter | ResNet-18, backbone_lr=1e-4, attention_lr=5e-4, head_lr=1e-3, epochs=30 |
+| Hyperparameter | ResNet-18, backbone_lr=1e-4, attention_lr=5e-4, head_lr=1e-3, epochs=50 |
+| Hyperparameter | ResNet-18, backbone_lr=5e-5, attention_lr=5e-4, head_lr=5e-4, epochs=30 |
+| Hyperparameter | ResNet-18, backbone_lr=5e-5, attention_lr=5e-4, head_lr=5e-4, epochs=50 |
+| Hyperparameter | ResNet-34, backbone_lr=1e-4, attention_lr=5e-4, head_lr=1e-3, epochs=30 |
+| Hyperparameter | ResNet-34, backbone_lr=1e-4, attention_lr=5e-4, head_lr=1e-3, epochs=50 |
+| Hyperparameter | ResNet-34, backbone_lr=5e-5, attention_lr=5e-4, head_lr=5e-4, epochs=30 |
+| Hyperparameter | ResNet-34, backbone_lr=5e-5, attention_lr=5e-4, head_lr=5e-4, epochs=50 |
 | Pretraining Ablation | ResNet-18 scratch |
 | Pretraining Ablation | ResNet-34 scratch |
 | Attention | SE-ResNet-18 pretrained |
@@ -414,18 +445,21 @@ logger:
 - Attention
 - Epochs
 - Backbone LR
+- Attention LR
 - Head LR
 - Best Val Acc
+- Best Val mAP
 - Test Acc
+- Test mAP
 - Params
 
 ## Model Notes
 
-Baseline 使用 torchvision ResNet-18/34，加载 `IMAGENET1K_V1` 权重后替换 `fc` 为 102 类输出。优化器采用差分学习率：backbone 使用较小 learning rate，分类头使用较大 learning rate。
+Baseline 使用 torchvision ResNet-18/34，加载 `IMAGENET1K_V1` 权重后替换 `fc` 为 102 类输出。优化器采用差分学习率：backbone 使用较小 learning rate，attention module 使用中等 learning rate，分类头使用较大 learning rate。
 
-SE-ResNet 保留原始 ResNet 主体结构，在 `layer1/layer2/layer3/layer4` 每个 stage 后插入手写 `SEBlock`。当 `pretrained=true` 时，先加载原始 ImageNet ResNet 权重，再随机初始化新增 SE 模块。新增 attention module 的作用是学习与 Flowers102 任务相关的通道重标定。
+SE-ResNet 保留 torchvision ResNet 的预训练卷积与 BN 权重，并在每个 `BasicBlock` 内部的 residual branch 末端插入 `SEBlock`，具体位置为 `conv1 -> bn1 -> relu -> conv2 -> bn2 -> SE -> add shortcut -> relu`。当 `pretrained=true` 时，原始 ResNet backbone 权重由 ImageNet 初始化，新增 SE 参数随机初始化，最后 `fc` 层重新初始化为 102 类。
 
-CBAM 是可选增强，同样在每个 stage 后插入手写 channel attention 和 spatial attention。
+CBAM 是可选增强，同样插入每个 `BasicBlock` 的 `bn2` 之后、shortcut 相加之前，形式为 `conv1 -> bn1 -> relu -> conv2 -> bn2 -> CBAM -> add shortcut -> relu`。CBAM 包含 channel attention 与 spatial attention，作用对象是卷积特征图而不是最终 logits。
 
 实验结论需要区分“同训练预算下的控制变量对比”和“充分调参后的最优性能”。主实验中的 scratch 与 pretrained 对比保持相近训练轮数和优化器设置，用于观察 ImageNet 预训练在相同预算下的收益；但随机初始化网络通常需要更长 epoch 和更大的 backbone learning rate。类似地，SE/CBAM 的新增模块随机初始化，若训练轮数不足，可能因为优化不充分而未能体现潜在收益。因此后续优化时应优先参考 `scripts/run_extended_budget.sh`，补充 scratch 长训练实验和 attention 长训练实验。
 

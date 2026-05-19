@@ -5,7 +5,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import average_precision_score, confusion_matrix
 
 
 def accuracy(output: torch.Tensor, target: torch.Tensor, topk: tuple[int, ...] = (1,)) -> list[torch.Tensor]:
@@ -19,6 +19,15 @@ def accuracy(output: torch.Tensor, target: torch.Tensor, topk: tuple[int, ...] =
             correct_k = correct[:k].reshape(-1).float().sum(0)
             res.append(correct_k.mul_(100.0 / target.size(0)))
         return res
+
+
+def mean_average_precision(y_true: list[int], y_score: list[list[float]] | np.ndarray, num_classes: int) -> float:
+    if len(y_true) == 0:
+        return 0.0
+    scores = np.asarray(y_score, dtype=np.float64)
+    labels = np.zeros((len(y_true), num_classes), dtype=np.int32)
+    labels[np.arange(len(y_true)), np.asarray(y_true, dtype=np.int64)] = 1
+    return float(average_precision_score(labels, scores, average="macro") * 100.0)
 
 
 class AverageMeter:
@@ -50,28 +59,32 @@ def save_training_curves(history: list[dict], out_dir: str | Path, filename: str
 
     axes[0].plot(epochs, [row["train_loss"] for row in history], label="Train Loss", marker="o", linewidth=1.8)
     axes[0].plot(epochs, [row["val_loss"] for row in history], label="Val Loss", marker="o", linewidth=1.8)
-    axes[0].set_title("Loss")
+    axes[0].set_title("Train/Val Loss")
     axes[0].set_xlabel("Epoch")
     axes[0].set_ylabel("Loss")
     axes[0].grid(True, alpha=0.3)
     axes[0].legend()
 
-    axes[1].plot(epochs, [row["train_acc"] for row in history], label="Train Acc", marker="o", linewidth=1.8)
-    axes[1].plot(epochs, [row["val_acc"] for row in history], label="Val Acc", marker="o", linewidth=1.8)
-    axes[1].set_title("Accuracy")
+    axes[1].plot(epochs, [row["val_acc"] for row in history], label="Val Accuracy", marker="o", linewidth=1.8)
+    if "val_map" in history[-1]:
+        axes[1].plot(epochs, [row["val_map"] for row in history], label="Val mAP", marker="o", linewidth=1.8)
+    axes[1].set_title("Validation Accuracy / mAP")
     axes[1].set_xlabel("Epoch")
-    axes[1].set_ylabel("Accuracy (%)")
+    axes[1].set_ylabel("Metric (%)")
     axes[1].grid(True, alpha=0.3)
     axes[1].legend()
 
     backbone_lrs = [row["lr_backbone"] for row in history]
     head_lrs = [row["lr_head"] for row in history]
     axes[2].plot(epochs, backbone_lrs, label="Backbone LR", marker="o", linewidth=1.8)
+    if "lr_attention" in history[-1]:
+        axes[2].plot(epochs, [row["lr_attention"] for row in history], label="Attention LR", marker="o", linewidth=1.8)
     axes[2].plot(epochs, head_lrs, label="Head LR", marker="o", linewidth=1.8)
     axes[2].set_title("Learning Rate")
     axes[2].set_xlabel("Epoch")
     axes[2].set_ylabel("LR")
-    if all(lr > 0 for lr in backbone_lrs + head_lrs):
+    all_lrs = backbone_lrs + head_lrs + ([row["lr_attention"] for row in history] if "lr_attention" in history[-1] else [])
+    if all(lr > 0 for lr in all_lrs):
         axes[2].set_yscale("log")
     axes[2].grid(True, alpha=0.3)
     axes[2].legend()
@@ -79,6 +92,7 @@ def save_training_curves(history: list[dict], out_dir: str | Path, filename: str
     fig.suptitle("Training Curves", fontsize=14)
     fig.tight_layout()
     fig.savefig(png_path, dpi=200)
+    fig.savefig(out_dir / "wandb_training_curves.png", dpi=200)
     plt.close(fig)
     return str(png_path)
 

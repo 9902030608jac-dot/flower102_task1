@@ -10,7 +10,7 @@ import torch.nn as nn
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
 
-from .metrics import AverageMeter, accuracy, save_confusion_matrix, save_training_curves
+from .metrics import AverageMeter, accuracy, mean_average_precision, save_confusion_matrix, save_training_curves
 from .utils import save_json
 
 
@@ -69,11 +69,14 @@ def evaluate(
     split: str = "val",
     amp: bool = True,
     return_preds: bool = True,
+    compute_map: bool = True,
+    num_classes: int = 102,
 ) -> dict[str, Any]:
     model.eval()
     losses, accs = AverageMeter(), AverageMeter()
     y_true: list[int] = []
     y_pred: list[int] = []
+    y_score: list[list[float]] = []
     pbar = tqdm(loader, desc=f"Eval {split}", leave=False)
 
     for images, targets in pbar:
@@ -87,12 +90,19 @@ def evaluate(
         bs = images.size(0)
         losses.update(loss.item(), bs)
         accs.update(top1, bs)
-        if return_preds:
+        if return_preds or compute_map:
             y_true.extend(targets.cpu().tolist())
+        if return_preds:
             y_pred.extend(preds.cpu().tolist())
+        if compute_map:
+            probs = torch.softmax(outputs.detach(), dim=1)
+            y_score.extend(probs.cpu().tolist())
         pbar.set_postfix(loss=f"{losses.avg:.4f}", acc=f"{accs.avg:.2f}")
 
-    return {f"{split}_loss": losses.avg, f"{split}_acc": accs.avg, "y_true": y_true, "y_pred": y_pred}
+    result: dict[str, Any] = {f"{split}_loss": losses.avg, f"{split}_acc": accs.avg, "y_true": y_true, "y_pred": y_pred}
+    if compute_map:
+        result[f"{split}_map"] = mean_average_precision(y_true, y_score, num_classes)
+    return result
 
 
 def save_checkpoint(
@@ -102,6 +112,7 @@ def save_checkpoint(
     scheduler,
     epoch: int,
     best_val_acc: float,
+    best_val_map: float,
     config: dict[str, Any],
 ) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -112,10 +123,19 @@ def save_checkpoint(
             "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None,
             "epoch": epoch,
             "best_val_acc": best_val_acc,
+            "best_val_map": best_val_map,
             "config": config,
         },
         path,
     )
+
+
+def _lr_row(optimizer: torch.optim.Optimizer) -> dict[str, float]:
+    row: dict[str, float] = {}
+    for group in optimizer.param_groups:
+        name = group.get("name", f"group_{len(row)}")
+        row[f"lr_{name}"] = group["lr"]
+    return row
 
 
 def fit(
@@ -136,10 +156,12 @@ def fit(
     scaler = GradScaler(enabled=amp)
     epochs = int(train_cfg["epochs"])
     grad_clip = train_cfg.get("grad_clip", 1.0)
+    num_classes = int(config["model"].get("num_classes", 102))
     metrics_path = paths["metrics_dir"] / "metrics.csv"
     best_ckpt = paths["ckpt_dir"] / "best.pt"
     last_ckpt = paths["ckpt_dir"] / "last.pt"
     best_val_acc = -1.0
+    best_val_map = -1.0
     history: list[dict[str, Any]] = []
     start = time.time()
 
@@ -147,7 +169,9 @@ def fit(
         train_metrics = train_one_epoch(
             model, train_loader, criterion, optimizer, device, epoch, amp=amp, grad_clip=grad_clip, scaler=scaler
         )
-        val_metrics = evaluate(model, val_loader, criterion, device, split="val", amp=amp, return_preds=False)
+        val_metrics = evaluate(
+            model, val_loader, criterion, device, split="val", amp=amp, return_preds=False, compute_map=True, num_classes=num_classes
+        )
         if scheduler is not None:
             scheduler.step()
 
@@ -156,41 +180,52 @@ def fit(
             **train_metrics,
             "val_loss": val_metrics["val_loss"],
             "val_acc": val_metrics["val_acc"],
-            "lr_backbone": optimizer.param_groups[0]["lr"],
-            "lr_head": optimizer.param_groups[-1]["lr"],
+            "val_map": val_metrics["val_map"],
+            **_lr_row(optimizer),
         }
         history.append(row)
         pd.DataFrame(history).to_csv(metrics_path, index=False)
         curves_path = save_training_curves(history, paths["figures_dir"])
+        wandb_curves_path = paths["figures_dir"] / "wandb_training_curves.png"
         if exp_logger is not None:
             exp_logger.log(row, step=epoch)
             exp_logger.log_artifact(curves_path, name="training_curves")
+            exp_logger.log_artifact(str(wandb_curves_path), name="wandb_training_curves")
             if hasattr(exp_logger, "save_file"):
                 exp_logger.save_file(metrics_path)
                 exp_logger.save_file(curves_path)
+                exp_logger.save_file(wandb_curves_path)
 
         if row["val_acc"] > best_val_acc:
             best_val_acc = row["val_acc"]
-            save_checkpoint(best_ckpt, model, optimizer, scheduler, epoch, best_val_acc, config)
+            best_val_map = row["val_map"]
+            save_checkpoint(best_ckpt, model, optimizer, scheduler, epoch, best_val_acc, best_val_map, config)
             if exp_logger is not None and hasattr(exp_logger, "save_file"):
                 exp_logger.save_file(best_ckpt)
 
-        save_checkpoint(last_ckpt, model, optimizer, scheduler, epoch, best_val_acc, config)
+        save_checkpoint(last_ckpt, model, optimizer, scheduler, epoch, best_val_acc, best_val_map, config)
         if exp_logger is not None and hasattr(exp_logger, "save_file"):
             exp_logger.save_file(last_ckpt)
-        print(f"Epoch {epoch:03d}/{epochs}: train_acc={row['train_acc']:.2f}, val_acc={row['val_acc']:.2f}, best={best_val_acc:.2f}")
+        print(
+            f"Epoch {epoch:03d}/{epochs}: train_acc={row[train_acc]:.2f}, "
+            f"val_acc={row[val_acc]:.2f}, val_mAP={row[val_map]:.2f}, best={best_val_acc:.2f}"
+        )
 
     checkpoint = torch.load(best_ckpt, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
-    test_metrics = evaluate(model, test_loader, criterion, device, split="test", amp=amp, return_preds=True)
+    test_metrics = evaluate(
+        model, test_loader, criterion, device, split="test", amp=amp, return_preds=True, compute_map=True, num_classes=num_classes
+    )
     elapsed = time.time() - start
     cm_paths = save_confusion_matrix(
-        test_metrics["y_true"], test_metrics["y_pred"], paths["figures_dir"], num_classes=config["model"]["num_classes"]
+        test_metrics["y_true"], test_metrics["y_pred"], paths["figures_dir"], num_classes=num_classes
     )
     out = {
         "best_val_acc": float(best_val_acc),
+        "best_val_map": float(best_val_map),
         "test_loss": float(test_metrics["test_loss"]),
         "test_acc": float(test_metrics["test_acc"]),
+        "test_map": float(test_metrics["test_map"]),
         "train_time": elapsed,
         "checkpoint_path": str(best_ckpt),
         "confusion_matrix_npy": cm_paths["npy"],
@@ -199,7 +234,7 @@ def fit(
     test_metrics_path = paths["metrics_dir"] / "test_metrics.json"
     save_json(out, test_metrics_path)
     if exp_logger is not None:
-        exp_logger.log({"best_val_acc": best_val_acc, "test_acc": out["test_acc"], "train_time": elapsed})
+        exp_logger.log({"best_val_acc": best_val_acc, "best_val_map": best_val_map, "test_acc": out["test_acc"], "test_map": out["test_map"], "train_time": elapsed})
         exp_logger.log_artifact(cm_paths["png"], name="confusion_matrix")
         if hasattr(exp_logger, "save_file"):
             exp_logger.save_file(test_metrics_path)

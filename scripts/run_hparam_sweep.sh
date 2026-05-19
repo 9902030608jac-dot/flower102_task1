@@ -19,3 +19,4 @@ echo "[Sweep] ResNet-34, backbone_lr=5e-5, head_lr=5e-4, epochs=50"
 python scripts/train.py --config configs/baseline_resnet34.yaml --experiment.name hparam_resnet34_lr2_epochs50 --arch resnet34 --pretrained true --epochs 50 --backbone_lr 5e-5 --head_lr 5e-4
 
 python scripts/summarize_results.py --out_csv outputs/metrics/results_summary.csv --out_md outputs/metrics/results_summary.md
+python scripts/export_experiment_settings.py
